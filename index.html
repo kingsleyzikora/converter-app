@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FileMaster Pro - Image & Document Manager</title>
+    
+    <!-- App Manifest for PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2575fc">
+    <link rel="icon" type="image/png" href="icon.png">
+    
+    <!-- Capacitor/Cordova Ready -->
+    <script src="https://unpkg.com/@capacitor/core/dist/capacitor.js"></script>
+    
+    <!-- Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <!-- PDF.js for PDF viewing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    
+    <!-- Image processing library -->
+    <script src="https://cdn.jsdelivr.net/npm/@nativescript/canvas-polyfill@1.0.0"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #2575fc;
+            --primary-dark: #6a11cb;
+            --secondary: #4CAF50;
+            --danger: #ff416c;
+            --warning: #FF9800;
+            --dark: #222;
+            --light: #f8f9fa;
+            --gray: #666;
+            --border-radius: 15px;
+            --shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* App Container */
+        .app-container {
+            width: 100%;
+            max-width: 400px;
+            height: 85vh;
+            min-height: 700px;
+            background-color: var(--light);
+            border-radius: var(--border-radius);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background-color: var(--dark);
+            color: white;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 100;
+            position: relative;
+        }
+
+        .status-bar i {
+            margin-right: 5px;
+        }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(to right, var(--primary-dark), var(--primary));
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .app-header h1 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .app-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .header-actions {
+            position: absolute;
+            right: 15px;
+            top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .header-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Navigation */
+        .app-navigation {
+            display: flex;
+            background-color: white;
+            border-bottom: 1px solid #eee;
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray);
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            position: relative;
+        }
+
+        .nav-btn i {
+            font-size: 18px;
+        }
+
+        .nav-btn.active {
+            color: var(--primary);
+        }
+
+        .nav-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 3px;
+            background-color: var(--primary);
+            border-radius: 3px;
+        }
+
+        .nav-badge {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background-color: var(--danger);
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 10px;
+            min-width: 16px;
+            text-align: center;
+        }
+
+        /* Content Area */
+        .app-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: none;
+        }
+
+        .app-content.active {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Upload Area */
+        .upload-section {
+            margin-bottom: 25px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--primary-dark);
+            border-radius: var(--border-radius);
+            padding: 30px 20px;
+            text-align: center;
+            background-color: rgba(106, 17, 203, 0.05);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .upload-area.dragover {
+            border-color: var(--secondary);
+            background-color: rgba(76, 175, 80, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-area.uploading {
+            border-color: var(--secondary);
+        }
+
+        .upload-area i {
+            font-size: 48px;
+            color: var(--primary-dark);
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .upload-area.uploading i {
+            animation: spin 2s linear infinite;
+            color: var(--secondary);
+        }
+
+        .upload-area h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .upload-area p {
+            font-size: 14px;
+            color: var(--gray);
+            margin-bottom: 15px;
+        }
+
+        .upload-btn {
+            background: linear-gradient(to right, var(--primary-dark), var(--primary));
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-btn:active {
+            transform: scale(0.98);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Controls */
+        .controls-section {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .control-value {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, var(--primary-dark), var(--primary));
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid var(--primary);
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+
+        .dimension-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .dimension-input {
+            position: relative;
+        }
+
+        .dimension-input label {
+            display: block;
+            font-size: 14px;
+            color: var(--gray);
+            margin-bottom: 8px;
+        }
+
+        .dimension-input input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .dimension-input input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .dimension-unit {
+            position: absolute;
+            right: 12px;
+            top: 40px;
+            color: var(--gray);
+            font-weight: 500;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .action-btn {
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .action-btn:active {
+            transform: translateY(2px);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, var(--primary-dark), var(--primary));
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #f1f3f9;
+            color: #444;
+        }
+
+        .btn-success {
+            background: linear-gradient(to right, var(--secondary), #2E7D32);
+            color: white;
+        }
+
+        /* Preview Area */
+        .preview-section {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            margin-top: 25px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .preview-placeholder {
+            padding: 40px 20px;
+            color: #888;
+            font-size: 16px;
+        }
+
+        .preview-placeholder i {
+            font-size: 50px;
+            margin-bottom: 15px;
+            color: #ddd;
+        }
+
+        .preview-info {
+            margin-top: 15px;
+            font-size: 14px;
+            color: var(--gray);
+        }
+
+        .download-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 12px 24px;
+            background: linear-gradient(to right, var(--secondary), #2E7D32);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .download-link:active {
+            transform: scale(0.98);
+        }
+
+        /* Files List */
+        .files-section {
+            margin-top: 25px;
+        }
+
+        .files-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .file-item {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .file-item:active {
+            transform: scale(0.98);
+        }
+
+        .file-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .icon-pdf { background: linear-gradient(to right, #ff416c, #ff4b2b); }
+        .icon-doc { background: linear-gradient(to right, #2193b0, #6dd5ed); }
+        .icon-img { background: linear-gradient(to right, #ff7e5f, #feb47b); }
+        .icon-xls { background: linear-gradient(to right, #4CAF50, #2E7D32); }
+        .icon-ppt { background: linear-gradient(to right, #FF9800, #FF5722); }
+
+        .file-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 13px;
+            color: var(--gray);
+            display: flex;
+            gap: 10px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .file-action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background-color: #f1f3f9;
+            color: #444;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .file-action-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Progress */
+        .progress-container {
+            margin: 15px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background-color: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--primary-dark), var(--primary));
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: var(--gray);
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 90%;
+            max-width: 350px;
+        }
+
+        .toast {
+            background-color: white;
+            color: #333;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideUp 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success { border-left: 4px solid var(--secondary); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.info { border-left: 4px solid var(--primary); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-icon { color: var(--secondary); }
+        .toast.error .toast-icon { color: var(--danger); }
+        .toast.info .toast-icon { color: var(--primary); }
+        .toast.warning .toast-icon { color: var(--warning); }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .toast-message {
+            font-size: 14px;
+            color: var(--gray);
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--gray);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            margin-top: 20px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-info h4 {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .setting-info p {
+            font-size: 14px;
+            color: var(--gray);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-switch {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider-switch:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-switch {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider-switch:before {
+            transform: translateX(24px);
+        }
+
+        /* Footer */
+        .app-footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 12px;
+            color: var(--gray);
+            border-top: 1px solid #eee;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: white;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-height: 750px) {
+            .app-container {
+                height: 95vh;
+                min-height: 600px;
+            }
+            .preview-image {
+                max-height: 200px;
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app-container">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div><i class="fas fa-signal"></i> 5G</div>
+            <div id="current-time">2:45 PM</div>
+            <div><i class="fas fa-battery-three-quarters"></i> <span id="battery-level">78%</span></div>
+        </div>
+
+        <!-- Header -->
+        <header class="app-header">
+            <h1>FileMaster Pro</h1>
+            <p>Professional Image & Document Manager</p>
+            <div class="header-actions">
+                <button class="header-btn" id="settings-btn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button class="header-btn" id="help-btn" title="Help">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-navigation">
+            <button class="nav-btn active" data-tab="resizer">
+                <i class="fas fa-image"></i> Resize
+                <span class="nav-badge" id="resize-count">0</span>
+            </button>
+            <button class="nav-btn" data-tab="documents">
+                <i class="fas fa-file-alt"></i> Documents
+                <span class="nav-badge" id="doc-count">5</span>
+            </button>
+            <button class="nav-btn" data-tab="gallery">
+                <i class="fas fa-photo-video"></i> Gallery
+                <span class="nav-badge" id="gallery-count">1</span>
+            </button>
+            <button class="nav-btn" data-tab="settings">
+                <i class="fas fa-sliders-h"></i> Settings
+            </button>
+        </nav>
+
+        <!-- Content Sections -->
+        <main class="app-content active" id="resizer">
+            <!-- Image Resizer Section -->
+            <div class="upload-section">
+                <div class="upload-area" id="image-upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Upload Image</h3>
+                    <p>Drag & drop or tap to select image</p>
+                    <button class="upload-btn" id="image-upload-btn">
+                        <i class="fas fa-folder-open"></i> Choose Image
+                    </button>
+                    <input type="file" id="image-input" accept="image/*" style="display: none;" multiple>
+                    
+                    <div class="progress-container" id="image-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="image-progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="image-progress-text">Uploading: 0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Image Quality</span>
+                        <span class="control-value" id="quality-value">85%</span>
+                    </div>
+                    <input type="range" min="10" max="100" value="85" class="slider" id="quality-slider">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Dimensions (px)</span>
+                        <span class="control-value" id="dimension-value">800×600</span>
+                    </div>
+                    <div class="dimension-grid">
+                        <div class="dimension-input">
+                            <label>Width</label>
+                            <input type="number" id="width-input" value="800" min="100" max="5000">
+                            <span class="dimension-unit">px</span>
+                        </div>
+                        <div class="dimension-input">
+                            <label>Height</label>
+                            <input type="number" id="height-input" value="600" min="100" max="5000">
+                            <span class="dimension-unit">px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Format</span>
+                        <span class="control-value" id="format-value">JPEG</span>
+                    </div>
+                    <div class="dimension-grid">
+                        <select id="format-select" class="dimension-input" style="grid-column: span 2; padding: 12px;">
+                            <option value="jpeg">JPEG (.jpg)</option>
+                            <option value="png">PNG (.png)</option>
+                            <option value="webp">WebP (.webp)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="action-btn btn-secondary" id="reset-btn">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+                <button class="action-btn btn-primary" id="resize-btn">
+                    <i class="fas fa-magic"></i> Resize Now
+                </button>
+            </div>
+
+            <div class="preview-section" id="preview-container">
+                <div id="image-preview" class="preview-placeholder">
+                    <i class="fas fa-image"></i>
+                    <p>Upload an image to preview</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Documents Section -->
+        <main class="app-content" id="documents">
+            <div class="upload-section">
+                <div class="upload-area" id="doc-upload-area">
+                    <i class="fas fa-file-upload"></i>
+                    <h3>Upload Documents</h3>
+                    <p>PDF, DOCX, XLSX, PPTX, TXT</p>
+                    <button class="upload-btn" id="doc-upload-btn">
+                        <i class="fas fa-plus"></i> Add Documents
+                    </button>
+                    <input type="file" id="doc-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" style="display: none;" multiple>
+                    
+                    <div class="progress-container" id="doc-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="doc-progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="doc-progress-text">Uploading: 0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="files-section">
+                <h3 class="section-title"><i class="fas fa-history"></i> Recent Documents</h3>
+                <div class="files-list" id="documents-list">
+                    <!-- Documents will be loaded here -->
+                </div>
+            </div>
+
+            <div class="preview-section" id="document-preview">
+                <div class="preview-placeholder">
+                    <i class="fas fa-file-alt"></i>
+                    <p>Select a document to preview</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Gallery Section -->
+        <main class="app-content" id="gallery">
+            <div class="upload-section">
+                <div class="upload-area" id="gallery-upload-area">
+                    <i class="fas fa-images"></i>
+                    <h3>Add to Gallery</h3>
+                    <p>Upload multiple images at once</p>
+                    <button class="upload-btn" id="gallery-upload-btn">
+                        <i class="fas fa-images"></i> Add Images
+                    </button>
+                    <input type="file" id="gallery-input" accept="image/*" style="display: none;" multiple>
+                </div>
+            </div>
+
+            <div class="files-section">
+                <div class="action-buttons">
+                    <button class="action-btn btn-secondary" id="select-all-btn">
+                        <i class="fas fa-check-square"></i> Select All
+                    </button>
+                    <button class="action-btn btn-success" id="batch-resize-btn">
+                        <i class="fas fa-bolt"></i> Batch Resize
+                    </button>
+                </div>
+
+                <div class="files-list" id="gallery-list">
+                    <!-- Gallery images will be loaded here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Settings Section -->
+        <main class="app-content" id="settings">
+            <div class="settings-panel">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <h4>Auto-save to Gallery</h4>
+                        <p>Automatically save resized images to gallery</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="auto-save-toggle" checked>
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <h4>High Quality Compression</h4>
+                        <p>Use higher quality compression algorithms</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="high-quality-toggle">
+                        <span class="slider-switch"></span>
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <h4>Dark Mode</h4>
+                        <p>Switch to dark theme</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="slider-switch"></span>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <h4>Storage Location</h4>
+                        <p>Choose where to save files</p>
+                    </div>
+                    <select id="storage-location" style="padding: 8px; border-radius: 8px; border: 1px solid #ddd;">
+                        <option value="app">App Storage</option>
+                        <option value="downloads">Downloads Folder</option>
+                        <option value="pictures">Pictures Folder</option>
+                    </select>
+                </div>
+
+                <div class="action-buttons" style="margin-top: 30px;">
+                    <button class="action-btn btn-secondary" id="clear-cache-btn">
+                        <i class="fas fa-trash"></i> Clear Cache
+                    </button>
+                    <button class="action-btn btn-primary" id="export-data-btn">
+                        <i class="fas fa-download"></i> Export Data
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>FileMaster Pro v2.0 • Secure • Offline Capable</p>
+        </footer>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Processing...</div>
+    </div>
+
+    <!-- Hidden Canvas for Image Processing -->
+    <canvas id="processing-canvas" style="display: none;"></canvas>
+
+    <!-- Production-Ready Script -->
+    <script>
+        // ============================================
+        // PRODUCTION-READY FILEMASTER APP
+        // ============================================
+
+        // App State
+        const AppState = {
+            currentImage: null,
+            images: [],
+            documents: [],
+            gallery: [],
+            settings: {
+                autoSave: true,
+                highQuality: false,
+                darkMode: false,
+                storageLocation: 'app'
+            },
+            stats: {
+                resizedCount: 0,
+                uploadedDocs: 0,
+                galleryItems: 0
+            }
+        };
+
+        // Initialize the app
+        class FileMasterApp {
+            constructor() {
+                this.initElements();
+                this.initEventListeners();
+                this.loadAppData();
+                this.initApp();
+            }
+
+            initElements() {
+                // Core elements
+                this.appContainer = document.getElementById('app-container');
+                this.navButtons = document.querySelectorAll('.nav-btn');
+                this.contentSections = document.querySelectorAll('.app-content');
+                
+                // Image resizer elements
+                this.imageUploadArea = document.getElementById('image-upload-area');
+                this.imageUploadBtn = document.getElementById('image-upload-btn');
+                this.imageInput = document.getElementById('image-input');
+                this.qualitySlider = document.getElementById('quality-slider');
+                this.qualityValue = document.getElementById('quality-value');
+                this.widthInput = document.getElementById('width-input');
+                this.heightInput = document.getElementById('height-input');
+                this.formatSelect = document.getElementById('format-select');
+                this.formatValue = document.getElementById('format-value');
+                this.dimensionValue = document.getElementById('dimension-value');
+                this.resetBtn = document.getElementById('reset-btn');
+                this.resizeBtn = document.getElementById('resize-btn');
+                this.imagePreview = document.getElementById('image-preview');
+                this.previewContainer = document.getElementById('preview-container');
+                
+                // Document viewer elements
+                this.docUploadArea = document.getElementById('doc-upload-area');
+                this.docUploadBtn = document.getElementById('doc-upload-btn');
+                this.docInput = document.getElementById('doc-input');
+                this.documentsList = document.getElementById('documents-list');
+                this.documentPreview = document.getElementById('document-preview');
+                
+                // Gallery elements
+                this.galleryUploadArea = document.getElementById('gallery-upload-area');
+                this.galleryUploadBtn = document.getElementById('gallery-upload-btn');
+                this.galleryInput = document.getElementById('gallery-input');
+                this.galleryList = document.getElementById('gallery-list');
+                this.selectAllBtn = document.getElementById('select-all-btn');
+                this.batchResizeBtn = document.getElementById('batch-resize-btn');
+                
+                // Settings elements
+                this.autoSaveToggle = document.getElementById('auto-save-toggle');
+                this.highQualityToggle = document.getElementById('high-quality-toggle');
+                this.darkModeToggle = document.getElementById('dark-mode-toggle');
+                this.storageLocation = document.getElementById('storage-location');
+                this.clearCacheBtn = document.getElementById('clear-cache-btn');
+                this.exportDataBtn = document.getElementById('export-data-btn');
+                
+                // Status elements
+                this.resizeCount = document.getElementById('resize-count');
+                this.docCount = document.getElementById('doc-count');
+                this.galleryCount = document.getElementById('gallery-count');
+                
+                // Canvas for image processing
+                this.canvas = document.getElementById('processing-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Loading overlay
+                this.loadingOverlay = document.getElementById('loading-overlay');
+                this.loadingText = document.getElementById('loading-text');
+                
+                // Toast container
+                this.toastContainer = document.getElementById('toast-container');
+            }
+
+            initEventListeners() {
+                // Navigation
+                this.navButtons.forEach(btn => {
+                    btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+                });
+
+                // Image upload
+                this.imageUploadBtn.addEventListener('click', () => this.imageInput.click());
+                this.imageUploadArea.addEventListener('click', (e) => {
+                    if (!this.imageUploadBtn.contains(e.target)) {
+                        this.imageInput.click();
+                    }
+                });
+                this.imageInput.addEventListener('change', (e) => this.handleImageUpload(e.target.files));
+
+                // Drag and drop for images
+                this.imageUploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.imageUploadArea.classList.add('dragover');
+                });
+
+                this.imageUploadArea.addEventListener('dragleave', () => {
+                    this.imageUploadArea.classList.remove('dragover');
+                });
+
+                this.imageUploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.imageUploadArea.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    this.handleImageUpload(files);
+                });
+
+                // Document upload
+                this.docUploadBtn.addEventListener('click', () => this.docInput.click());
+                this.docUploadArea.addEventListener('click', (e) => {
+                    if (!this.docUploadBtn.contains(e.target)) {
+                        this.docInput.click();
+                    }
+                });
+                this.docInput.addEventListener('change', (e) => this.handleDocumentUpload(e.target.files));
+
+                // Gallery upload
+                this.galleryUploadBtn.addEventListener('click', () => this.galleryInput.click());
+                this.galleryUploadArea.addEventListener('click', (e) => {
+                    if (!this.galleryUploadBtn.contains(e.target)) {
+                        this.galleryInput.click();
+                    }
+                });
+                this.galleryInput.addEventListener('change', (e) => this.handleGalleryUpload(e.target.files));
+
+                // Image controls
+                this.qualitySlider.addEventListener('input', () => this.updateQualityValue());
+                this.widthInput.addEventListener('input', () => this.updateDimensions());
+                this.heightInput.addEventListener('input', () => this.updateDimensions());
+                this.formatSelect.addEventListener('change', () => this.updateFormatValue());
+
+                // Action buttons
+                this.resetBtn.addEventListener('click', () => this.resetImageSettings());
+                this.resizeBtn.addEventListener('click', () => this.processImage());
+
+                // Gallery actions
+                this.selectAllBtn.addEventListener('click', () => this.selectAllGalleryItems());
+                this.batchResizeBtn.addEventListener('click', () => this.processBatchResize());
+
+                // Settings
+                this.autoSaveToggle.addEventListener('change', () => this.updateSetting('autoSave', this.autoSaveToggle.checked));
+                this.highQualityToggle.addEventListener('change', () => this.updateSetting('highQuality', this.highQualityToggle.checked));
+                this.darkModeToggle.addEventListener('change', () => this.toggleDarkMode());
+                this.storageLocation.addEventListener('change', () => this.updateSetting('storageLocation', this.storageLocation.value));
+                this.clearCacheBtn.addEventListener('click', () => this.clearAppCache());
+                this.exportDataBtn.addEventListener('click', () => this.exportAppData());
+
+                // Settings and Help buttons
+                document.getElementById('settings-btn').addEventListener('click', () => this.switchTab('settings'));
+                document.getElementById('help-btn').addEventListener('click', () => this.showHelp());
+
+                // Update time every minute
+                setInterval(() => this.updateTime(), 60000);
+                this.updateTime();
+            }
+
+            initApp() {
+                // Load sample data for demo
+                this.loadSampleDocuments();
+                this.loadSampleGallery();
+                this.updateStats();
+                
+                // Show welcome message
+                setTimeout(() => {
+                    this.showToast('FileMaster Pro Ready', 'App loaded successfully. Start by uploading an image or document.', 'success');
+                }, 1000);
+            }
+
+            // ============================================
+            // CORE FUNCTIONALITY
+            // ============================================
+
+            switchTab(tabId) {
+                // Update navigation
+                this.navButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === tabId);
+                });
+
+                // Update content
+                this.contentSections.forEach(section => {
+                    section.classList.toggle('active', section.id === tabId);
+                });
+
+                // Update badge counts
+                this.updateStats();
+            }
+
+            async handleImageUpload(files) {
+                if (!files || files.length === 0) return;
+
+                this.showLoading('Uploading images...');
+                
+                for (let file of files) {
+                    if (!file.type.startsWith('image/')) {
+                        this.showToast('Invalid File', 'Please upload image files only.', 'error');
+                        continue;
+                    }
+
+                    try {
+                        const imageData = await this.readFileAsDataURL(file);
+                        const img = await this.loadImage(imageData);
+                        
+                        AppState.currentImage = {
+                            id: Date.now(),
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            data: imageData,
+                            width: img.width,
+                            height: img.height,
+                            aspectRatio: img.width / img.height
+                        };
+
+                        // Update UI
+                        this.updatePreview(img, file);
+                        this.widthInput.value = img.width;
+                        this.heightInput.value = img.height;
+                        this.updateDimensions();
+                        this.resizeBtn.disabled = false;
+
+                        // Add to gallery if auto-save is enabled
+                        if (AppState.settings.autoSave) {
+                            this.addToGallery(AppState.currentImage);
+                        }
+
+                        this.showToast('Image Uploaded', `${file.name} uploaded successfully.`, 'success');
+                        
+                    } catch (error) {
+                        console.error('Error uploading image:', error);
+                        this.showToast('Upload Failed', 'Failed to upload image. Please try again.', 'error');
+                    }
+                }
+
+                this.hideLoading();
+            }
+
+            async handleDocumentUpload(files) {
+                if (!files || files.length === 0) return;
+
+                this.showLoading('Uploading documents...');
+
+                for (let file of files) {
+                    try {
+                        const fileData = {
+                            id: Date.now(),
+                            name: file.name,
+                            size: file.size,
+                            type: this.getFileType(file.name),
+                            lastModified: new Date(file.lastModified).toLocaleDateString(),
+                            file: file
+                        };
+
+                        AppState.documents.unshift(fileData);
+                        this.showToast('Document Uploaded', `${file.name} uploaded successfully.`, 'success');
+                        
+                    } catch (error) {
+                        console.error('Error uploading document:', error);
+                        this.showToast('Upload Failed', 'Failed to upload document.', 'error');
+                    }
+                }
+
+                this.renderDocumentsList();
+                this.updateStats();
+                this.hideLoading();
+            }
+
+            async handleGalleryUpload(files) {
+                if (!files || files.length === 0) return;
+
+                this.showLoading('Adding to gallery...');
+
+                for (let file of files) {
+                    if (!file.type.startsWith('image/')) continue;
+
+                    try {
+                        const imageData = await this.readFileAsDataURL(file);
+                        const img = await this.loadImage(imageData);
+                        
+                        const galleryItem = {
+                            id: Date.now(),
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            data: imageData,
+                            width: img.width,
+                            height: img.height,
+                            selected: false
+                        };
+
+                        AppState.gallery.push(galleryItem);
+                        
+                    } catch (error) {
+                        console.error('Error adding to gallery:', error);
+                    }
+                }
+
+                this.renderGallery();
+                this.updateStats();
+                this.hideLoading();
+                this.showToast('Gallery Updated', `${files.length} images added to gallery.`, 'success');
+            }
+
+            async processImage() {
+                if (!AppState.currentImage) {
+                    this.showToast('No Image', 'Please upload an image first.', 'warning');
+                    return;
+                }
+
+                this.showLoading('Resizing image...');
+
+                try {
+                    const width = parseInt(this.widthInput.value);
+                    const height = parseInt(this.heightInput.value);
+                    const quality = parseInt(this.qualitySlider.value) / 100;
+                    const format = this.formatSelect.value;
+
+                    // Load the image
+                    const img = await this.loadImage(AppState.currentImage.data);
+                    
+                    // Set canvas dimensions
+                    this.canvas.width = width;
+                    this.canvas.height = height;
+                    
+                    // Clear canvas
+                    this.ctx.clearRect(0, 0, width, height);
+                    
+                    // Draw resized image
+                    this.ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Get resized image data
+                    let resizedDataUrl;
+                    let mimeType = 'image/jpeg';
+                    let fileExtension = '.jpg';
+                    
+                    switch(format) {
+                        case 'png':
+                            mimeType = 'image/png';
+                            fileExtension = '.png';
+                            resizedDataUrl = this.canvas.toDataURL(mimeType);
+                            break;
+                        case 'webp':
+                            mimeType = 'image/webp';
+                            fileExtension = '.webp';
+                            resizedDataUrl = this.canvas.toDataURL(mimeType, quality);
+                            break;
+                        default: // jpeg
+                            resizedDataUrl = this.canvas.toDataURL(mimeType, quality);
+                    }
+                    
+                    // Create download link
+                    const originalName = AppState.currentImage.name.split('.')[0];
+                    const fileName = `${originalName}_${width}x${height}${fileExtension}`;
+                    
+                    // Update preview with resized image
+                    this.updatePreviewResized(resizedDataUrl, width, height, fileName);
+                    
+                    // Increment stats
+                    AppState.stats.resizedCount++;
+                    this.updateStats();
+                    
+                    // Show success message with download option
+                    setTimeout(() => {
+                        this.showToast('Image Resized', 'Image resized successfully. Tap to download.', 'success', () => {
+                            this.downloadFile(resizedDataUrl, fileName);
+                        });
+                    }, 500);
+                    
+                    // Save to app state
+                    AppState.images.push({
+                        id: Date.now(),
+                        name: fileName,
+                        size: this.estimateFileSize(resizedDataUrl),
+                        width: width,
+                        height: height,
+                        quality: quality * 100,
+                        format: format,
+                        data: resizedDataUrl,
+                        original: AppState.currentImage.name
+                    });
+                    
+                    // Save app data
+                    this.saveAppData();
+                    
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    this.showToast('Processing Failed', 'Failed to resize image. Please try again.', 'error');
+                }
+
+                this.hideLoading();
+            }
+
+            async processBatchResize() {
+                const selectedItems = AppState.gallery.filter(item => item.selected);
+                if (selectedItems.length === 0) {
+                    this.showToast('No Selection', 'Please select images to resize.', 'warning');
+                    return;
+                }
+
+                this.showLoading(`Processing ${selectedItems.length} images...`);
+
+                const width = parseInt(this.widthInput.value);
+                const height = parseInt(this.heightInput.value);
+                const quality = parseInt(this.qualitySlider.value) / 100;
+                const format = this.formatSelect.value;
+
+                for (let i = 0; i < selectedItems.length; i++) {
+                    const item = selectedItems[i];
+                    
+                    try {
+                        const img = await this.loadImage(item.data);
+                        
+                        this.canvas.width = width;
+                        this.canvas.height = height;
+                        this.ctx.clearRect(0, 0, width, height);
+                        this.ctx.drawImage(img, 0, 0, width, height);
+                        
+                        let mimeType = 'image/jpeg';
+                        let fileExtension = '.jpg';
+                        
+                        switch(format) {
+                            case 'png':
+                                mimeType = 'image/png';
+                                fileExtension = '.png';
+                                break;
+                            case 'webp':
+                                mimeType = 'image/webp';
+                                fileExtension = '.webp';
+                                break;
+                        }
+                        
+                        const resizedDataUrl = format === 'jpeg' ? 
+                            this.canvas.toDataURL(mimeType, quality) : 
+                            this.canvas.toDataURL(mimeType);
+                        
+                        const originalName = item.name.split('.')[0];
+                        const fileName = `${originalName}_${width}x${height}${fileExtension}`;
+                        
+                        // Download each resized image
+                        setTimeout(() => {
+                            this.downloadFile(resizedDataUrl, fileName);
+                        }, i * 100);
+                        
+                        // Update stats
+                        AppState.stats.resizedCount++;
+                        
+                    } catch (error) {
+                        console.error(`Error processing ${item.name}:`, error);
+                    }
+                }
+
+                this.updateStats();
+                this.hideLoading();
+                this.showToast('Batch Complete', `${selectedItems.length} images processed and downloaded.`, 'success');
+                
+                // Clear selection
+                AppState.gallery.forEach(item => item.selected = false);
+                this.renderGallery();
+            }
+
+            // ============================================
+            // UTILITY FUNCTIONS
+            // ============================================
+
+            readFileAsDataURL(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            loadImage(src) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = src;
+                });
+            }
+
+            updatePreview(img, file) {
+                this.imagePreview.innerHTML = `
+                    <img src="${img.src}" class="preview-image" alt="Preview">
+                    <div class="preview-info">
+                        <p><strong>${file.name}</strong></p>
+                        <p>${img.width} × ${img.height}px • ${this.formatFileSize(file.size)}</p>
+                    </div>
+                `;
+            }
+
+            updatePreviewResized(dataUrl, width, height, fileName) {
+                this.imagePreview.innerHTML = `
+                    <img src="${dataUrl}" class="preview-image" alt="Resized Preview">
+                    <div class="preview-info">
+                        <p><strong>${fileName}</strong></p>
+                        <p>${width} × ${height}px • Resized</p>
+                        <a href="#" class="download-link" id="download-resized-btn">
+                            <i class="fas fa-download"></i> Download Image
+                        </a>
+                    </div>
+                `;
+
+                // Add download listener
+                document.getElementById('download-resized-btn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.downloadFile(dataUrl, fileName);
+                });
+            }
+
+            downloadFile(dataUrl, fileName) {
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                this.showToast('Download Started', `${fileName} is downloading.`, 'success');
+            }
+
+            updateQualityValue() {
+                this.qualityValue.textContent = `${this.qualitySlider.value}%`;
+            }
+
+            updateDimensions() {
+                const width = this.widthInput.value || 0;
+                const height = this.heightInput.value || 0;
+                this.dimensionValue.textContent = `${width}×${height}`;
+            }
+
+            updateFormatValue() {
+                this.formatValue.textContent = this.formatSelect.options[this.formatSelect.selectedIndex].text;
+            }
+
+            resetImageSettings() {
+                if (AppState.currentImage) {
+                    this.widthInput.value = AppState.currentImage.width;
+                    this.heightInput.value = AppState.currentImage.height;
+                } else {
+                    this.widthInput.value = 800;
+                    this.heightInput.value = 600;
+                }
+                
+                this.qualitySlider.value = 85;
+                this.updateQualityValue();
+                this.updateDimensions();
+                
+                this.showToast('Settings Reset', 'All settings have been reset to default.', 'info');
+            }
+
+            selectAllGalleryItems() {
+                const allSelected = AppState.gallery.every(item => item.selected);
+                AppState.gallery.forEach(item => {
+                    item.selected = !allSelected;
+                });
+                this.renderGallery();
+                
+                const selectedCount = AppState.gallery.filter(item => item.selected).length;
+                this.showToast('Selection Updated', `${selectedCount} images selected.`, 'info');
+            }
+
+            addToGallery(imageData) {
+                const galleryItem = {
+                    id: Date.now(),
+                    name: imageData.name,
+                    size: imageData.size,
+                    type: imageData.type,
+                    data: imageData.data,
+                    width: imageData.width,
+                    height: imageData.height,
+                    selected: false
+                };
+
+                AppState.gallery.push(galleryItem);
+                this.renderGallery();
+            }
+
+            renderDocumentsList() {
+                this.documentsList.innerHTML = '';
+                
+                AppState.documents.forEach(doc => {
+                    const iconClass = this.getIconClass(doc.type);
+                    const icon = this.getIcon(doc.type);
+                    
+                    const docElement = document.createElement('div');
+                    docElement.className = 'file-item';
+                    docElement.innerHTML = `
+                        <div class="file-icon ${iconClass}">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${doc.name}</div>
+                            <div class="file-meta">
+                                <span>${this.formatFileSize(doc.size)}</span>
+                                <span>•</span>
+                                <span>${doc.lastModified}</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" data-action="view" data-id="${doc.id}" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="file-action-btn" data-action="download" data-id="${doc.id}" title="Download">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners
+                    docElement.querySelector('[data-action="view"]').addEventListener('click', () => this.viewDocument(doc));
+                    docElement.querySelector('[data-action="download"]').addEventListener('click', () => this.downloadDocument(doc));
+                    
+                    this.documentsList.appendChild(docElement);
+                });
+            }
+
+            renderGallery() {
+                this.galleryList.innerHTML = '';
+                
+                AppState.gallery.forEach(item => {
+                    const galleryElement = document.createElement('div');
+                    galleryElement.className = 'file-item';
+                    galleryElement.innerHTML = `
+                        <div class="file-icon icon-img">
+                            <i class="fas fa-image"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${item.name}</div>
+                            <div class="file-meta">
+                                <span>${item.width} × ${item.height}</span>
+                                <span>•</span>
+                                <span>${this.formatFileSize(item.size)}</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" data-action="select" data-id="${item.id}" 
+                                    style="${item.selected ? 'background-color: var(--primary); color: white;' : ''}">
+                                <i class="fas ${item.selected ? 'fa-check' : 'fa-square'}"></i>
+                            </button>
+                            <button class="file-action-btn" data-action="preview" data-id="${item.id}" title="Preview">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners
+                    galleryElement.querySelector('[data-action="select"]').addEventListener('click', () => this.toggleGallerySelection(item.id));
+                    galleryElement.querySelector('[data-action="preview"]').addEventListener('click', () => this.previewGalleryImage(item));
+                    
+                    this.galleryList.appendChild(galleryElement);
+                });
+            }
+
+            viewDocument(doc) {
+                this.documentPreview.innerHTML = `
+                    <div class="preview-placeholder">
+                        <i class="fas ${this.getIcon(doc.type)}" style="font-size: 60px; color: #666; margin-bottom: 15px;"></i>
+                        <h3>${doc.name}</h3>
+                        <p>${this.formatFileSize(doc.size)} • ${this.getFileType(doc.name).toUpperCase()}</p>
+                        <p style="margin-top: 15px; color: #666; font-size: 14px;">Document preview would appear here in a full implementation.</p>
+                        <button class="upload-btn" style="margin-top: 15px;" id="open-doc-btn">
+                            <i class="fas fa-external-link-alt"></i> Open Document
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('open-doc-btn').addEventListener('click', () => {
+                    this.showToast('Opening Document', `Opening ${doc.name}...`, 'info');
+                });
+            }
+
+            downloadDocument(doc) {
+                // In a real app, this would download the actual file
+                // For demo, we'll create a text file with metadata
+                const content = `File: ${doc.name}\nSize: ${this.formatFileSize(doc.size)}\nType: ${doc.type}\n\nThis is a simulated download.`;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = doc.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                URL.revokeObjectURL(url);
+                
+                this.showToast('Download Started', `${doc.name} is downloading.`, 'success');
+            }
+
+            toggleGallerySelection(id) {
+                const item = AppState.gallery.find(item => item.id === id);
+                if (item) {
+                    item.selected = !item.selected;
+                    this.renderGallery();
+                }
+            }
+
+            previewGalleryImage(item) {
+                this.imagePreview.innerHTML = `
+                    <img src="${item.data}" class="preview-image" alt="Gallery Preview">
+                    <div class="preview-info">
+                        <p><strong>${item.name}</strong></p>
+                        <p>${item.width} × ${item.height}px • ${this.formatFileSize(item.size)}</p>
+                        <button class="upload-btn" style="margin-top: 10px;" id="use-this-image-btn">
+                            <i class="fas fa-crop-alt"></i> Use This Image
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('use-this-image-btn').addEventListener('click', () => {
+                    AppState.currentImage = {
+                        id: item.id,
+                        name: item.name,
+                        size: item.size,
+                        type: item.type,
+                        data: item.data,
+                        width: item.width,
+                        height: item.height
+                    };
+                    
+                    this.widthInput.value = item.width;
+                    this.heightInput.value = item.height;
+                    this.updateDimensions();
+                    this.resizeBtn.disabled = false;
+                    
+                    this.switchTab('resizer');
+                    this.showToast('Image Selected', `${item.name} loaded for editing.`, 'success');
+                });
+            }
+
+            // ============================================
+            // SETTINGS & DATA MANAGEMENT
+            // ============================================
+
+            updateSetting(key, value) {
+                AppState.settings[key] = value;
+                this.saveAppData();
+                
+                switch(key) {
+                    case 'autoSave':
+                        this.showToast('Auto-Save', value ? 'Enabled' : 'Disabled', 'info');
+                        break;
+                    case 'highQuality':
+                        this.showToast('Quality Mode', value ? 'High quality enabled' : 'Standard quality', 'info');
+                        break;
+                }
+            }
+
+            toggleDarkMode() {
+                const isDark = this.darkModeToggle.checked;
+                AppState.settings.darkMode = isDark;
+                
+                if (isDark) {
+                    this.appContainer.style.backgroundColor = '#1a1a1a';
+                    this.appContainer.style.color = '#ffffff';
+                    document.body.style.background = '#121212';
+                } else {
+                    this.appContainer.style.backgroundColor = '';
+                    this.appContainer.style.color = '';
+                    document.body.style.background = '';
+                }
+                
+                this.saveAppData();
+                this.showToast('Theme', isDark ? 'Dark mode enabled' : 'Light mode enabled', 'info');
+            }
+
+            clearAppCache() {
+                if (confirm('Are you sure you want to clear all cached data? This cannot be undone.')) {
+                    localStorage.removeItem('filemaster_data');
+                    AppState.images = [];
+                    AppState.documents = [];
+                    AppState.gallery = [];
+                    AppState.stats = {
+                        resizedCount: 0,
+                        uploadedDocs: 0,
+                        galleryItems: 0
+                    };
+                    
+                    this.renderDocumentsList();
+                    this.renderGallery();
+                    this.updateStats();
+                    
+                    this.showToast('Cache Cleared', 'All cached data has been removed.', 'success');
+                }
+            }
+
+            exportAppData() {
+                const exportData = {
+                    app: 'FileMaster Pro',
+                    version: '2.0',
+                    exported: new Date().toISOString(),
+                    stats: AppState.stats,
+                    images: AppState.images.length,
+                    documents: AppState.documents.length,
+                    gallery: AppState.gallery.length
+                };
+                
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `filemaster_export_${new Date().getTime()}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                URL.revokeObjectURL(url);
+                
+                this.showToast('Data Exported', 'App data exported successfully.', 'success');
+            }
+
+            loadAppData() {
+                try {
+                    const saved = localStorage.getItem('filemaster_data');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        Object.assign(AppState, data);
+                        
+                        // Update UI with loaded data
+                        if (AppState.settings.darkMode) {
+                            this.darkModeToggle.checked = true;
+                            this.toggleDarkMode();
+                        }
+                        
+                        this.autoSaveToggle.checked = AppState.settings.autoSave;
+                        this.highQualityToggle.checked = AppState.settings.highQuality;
+                        this.storageLocation.value = AppState.settings.storageLocation;
+                    }
+                } catch (error) {
+                    console.error('Error loading app data:', error);
+                }
+            }
+
+            saveAppData() {
+                try {
+                    localStorage.setItem('filemaster_data', JSON.stringify(AppState));
+                } catch (error) {
+                    console.error('Error saving app data:', error);
+                }
+            }
+
+            updateStats() {
+                this.resizeCount.textContent = AppState.stats.resizedCount;
+                this.docCount.textContent = AppState.documents.length;
+                this.galleryCount.textContent = AppState.gallery.length;
+            }
+
+            updateTime() {
+                const now = new Date();
+                let hours = now.getHours();
+                let minutes = now.getMinutes();
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                
+                hours = hours % 12;
+                hours = hours ? hours : 12;
+                minutes = minutes < 10 ? '0' + minutes : minutes;
+                
+                document.getElementById('current-time').textContent = `${hours}:${minutes} ${ampm}`;
+            }
+
+            // ============================================
+            // UI HELPERS
+            // ============================================
+
+            showLoading(message) {
+                this.loadingText.textContent = message || 'Processing...';
+                this.loadingOverlay.style.display = 'flex';
+            }
+
+            hideLoading() {
+                this.loadingOverlay.style.display = 'none';
+            }
+
+            showToast(title, message, type = 'info', onClick = null) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const icons = {
+                    success: 'fa-check-circle',
+                    error: 'fa-exclamation-circle',
+                    warning: 'fa-exclamation-triangle',
+                    info: 'fa-info-circle'
+                };
+                
+                toast.innerHTML = `
+                    <i class="fas ${icons[type]} toast-icon"></i>
+                    <div class="toast-content">
+                        <div class="toast-title">${title}</div>
+                        <div class="toast-message">${message}</div>
+                    </div>
+                    <button class="toast-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                this.toastContainer.appendChild(toast);
+                
+                // Show animation
+                setTimeout(() => toast.classList.add('show'), 10);
+                
+                // Click handler
+                if (onClick) {
+                    toast.style.cursor = 'pointer';
+                    toast.addEventListener('click', onClick);
+                }
+                
+                // Close button
+                toast.querySelector('.toast-close').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.hideToast(toast);
+                });
+                
+                // Auto-remove
+                setTimeout(() => this.hideToast(toast), 5000);
+            }
+
+            hideToast(toast) {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }
+
+            showHelp() {
+                this.showToast('Help & Support', 
+                    'For help, visit our documentation or contact support.', 
+                    'info',
+                    () => {
+                        window.open('https://help.filemaster.com', '_blank');
+                    });
+            }
+
+            // ============================================
+            // SAMPLE DATA FOR DEMO
+            // ============================================
+
+            loadSampleDocuments() {
+                const sampleDocs = [
+                    { name: 'Project_Report.pdf', size: 2400000, type: 'pdf' },
+                    { name: 'Meeting_Notes.docx', size: 1100000, type: 'docx' },
+                    { name: 'Budget_2024.xlsx', size: 850000, type: 'xlsx' },
+                    { name: 'Presentation.pptx', size: 4200000, type: 'pptx' },
+                    { name: 'Readme.txt', size: 5200, type: 'txt' }
+                ];
+                
+                sampleDocs.forEach(doc => {
+                    AppState.documents.push({
+                        id: Date.now() + Math.random(),
+                        name: doc.name,
+                        size: doc.size,
+                        type: doc.type,
+                        lastModified: 'Sample'
+                    });
+                });
+                
+                this.renderDocumentsList();
+            }
+
+            async loadSampleGallery() {
+                // Load a sample image for the gallery
+                try {
+                    const sampleImage = await fetch('https://images.unsplash.com/photo-1541963463532-d68292c34b19?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8Ym9va3xlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&w=500&q=80')
+                        .then(res => res.blob())
+                        .then(blob => this.readFileAsDataURL(new File([blob], 'sample.jpg', { type: 'image/jpeg' })));
+                    
+                    const img = await this.loadImage(sampleImage);
+                    
+                    AppState.gallery.push({
+                        id: Date.now(),
+                        name: 'sample.jpg',
+                        size: 2100000,
+                        type: 'image/jpeg',
+                        data: sampleImage,
+                        width: img.width,
+                        height: img.height,
+                        selected: false
+                    });
+                    
+                    this.renderGallery();
+                    
+                } catch (error) {
+                    console.error('Error loading sample image:', error);
+                }
+            }
+
+            // ============================================
+            // HELPER FUNCTIONS
+            // ============================================
+
+            formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / 1048576).toFixed(1) + ' MB';
+            }
+
+            getFileType(filename) {
+                const ext = filename.split('.').pop().toLowerCase();
+                if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) return 'image';
+                if (ext === 'pdf') return 'pdf';
+                if (['doc', 'docx'].includes(ext)) return 'docx';
+                if (['xls', 'xlsx'].includes(ext)) return 'xlsx';
+                if (['ppt', 'pptx'].includes(ext)) return 'pptx';
+                if (ext === 'txt') return 'txt';
+                return 'file';
+            }
+
+            getIcon(type) {
+                switch(type) {
+                    case 'pdf': return 'fa-file-pdf';
+                    case 'docx': return 'fa-file-word';
+                    case 'xlsx': return 'fa-file-excel';
+                    case 'pptx': return 'fa-file-powerpoint';
+                    case 'txt': return 'fa-file-alt';
+                    case 'image': return 'fa-file-image';
+                    default: return 'fa-file';
+                }
+            }
+
+            getIconClass(type) {
+                switch(type) {
+                    case 'pdf': return 'icon-pdf';
+                    case 'docx': return 'icon-doc';
+                    case 'xlsx': return 'icon-xls';
+                    case 'pptx': return 'icon-ppt';
+                    case 'image': return 'icon-img';
+                    default: return 'icon-doc';
+                }
+            }
+
+            estimateFileSize(dataUrl) {
+                // Rough estimate: 2/3 of base64 string length
+                return Math.round((dataUrl.length * 3) / 4);
+            }
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new FileMasterApp();
+        });
+    </script>
+</body>
+</html>
